@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     floodwait_buffer_sec: int = Field(default=3, alias="FLOODWAIT_BUFFER_SEC")
     ai_mode: str = Field(default="suggestion-only", alias="AI_MODE")
     ai_provider: str = Field(default="stub", alias="AI_PROVIDER")
+    ai_agent_enabled: bool = Field(default=True, alias="AI_AGENT_ENABLED")
+    project_root: str = Field(default=".", alias="PROJECT_ROOT")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    openai_base_url: str | None = Field(default=None, alias="OPENAI_BASE_URL")
+    agent_notify_on_error: bool = Field(default=False, alias="AGENT_NOTIFY_ON_ERROR")
+    agent_max_context_files: int = Field(default=12, alias="AGENT_MAX_CONTEXT_FILES")
     telegram_proxy: str | None = Field(default=None, alias="TELEGRAM_PROXY")
 
     @field_validator("bot_token")

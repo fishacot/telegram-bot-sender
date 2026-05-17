@@ -68,7 +68,9 @@ class AccountImportService:
             api_hash=self.settings.telegram_api_hash,
             proxy_url=self.settings.telegram_proxy,
         )
-        client = factory.create(session_name)
+        row = await self.session.execute(select(Account).where(Account.name == session_name))
+        existing = row.scalar_one_or_none()
+        client = factory.create(session_name, proxy_url=existing.proxy if existing else None)
         try:
             await client.connect()
             if not await client.is_user_authorized():

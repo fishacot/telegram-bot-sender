@@ -23,3 +23,10 @@ def configure_logging() -> None:
         )
     handler.setFormatter(formatter)
     root.addHandler(handler)
+
+    if settings.ai_agent_enabled:
+        from app.infrastructure.logging.agent_handler import AgentErrorLogHandler
+
+        agent_handler = AgentErrorLogHandler()
+        agent_handler.setFormatter(formatter)
+        root.addHandler(agent_handler)

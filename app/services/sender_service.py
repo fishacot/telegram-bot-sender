@@ -197,8 +197,32 @@ class SenderService:
             return
         if "chatwriteforbidden" in message or "userbannedinchannel" in message:
             await self._save_attempt(task, "skipped", "chat_permission_denied", str(error))
+            await self._record_agent_error(task, error)
             return
         await self._save_attempt(task, "failed", "unknown", str(error))
+        await self._record_agent_error(task, error)
+
+    @staticmethod
+    async def _record_agent_error(task: SendTask, error: Exception) -> None:
+        settings = get_settings()
+        if not settings.ai_agent_enabled:
+            return
+        try:
+            from app.infrastructure.agent.error_store import error_store
+
+            await error_store.record(
+                source="sender",
+                level="ERROR",
+                message=str(error),
+                exc=error,
+                context={
+                    "campaign_id": task.campaign_id,
+                    "account_id": task.account_id,
+                    "chat_id": task.chat_id,
+                },
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     async def _retry(self, task: SendTask, settings: dict) -> None:
         retries = int(settings.get("retry_count", 0))

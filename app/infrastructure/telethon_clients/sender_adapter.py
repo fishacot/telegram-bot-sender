@@ -111,7 +111,7 @@ class TelethonSenderAdapter:
     async def _get_client(self, account: Account) -> TelegramClient:
         if account.id not in self._clients:
             session_name = Path(account.session_path).stem
-            client = self.factory.create(session_name)
+            client = self.factory.create(session_name, proxy_url=account.proxy)
             await client.connect()
             if not await client.is_user_authorized():
                 raise RuntimeError(

@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-import re
 from pathlib import Path
-from urllib.parse import urlparse
 
 from telethon import TelegramClient
+from telethon.network.connection.tcpmtproxy import ConnectionTcpMTProxyRandomizedIntermediate
+
+from app.domain.proxy_url import (
+    is_mtproto_proxy,
+    parse_mtproto_for_telethon,
+    parse_proxy_for_telethon,
+)
 
 
 class TelethonClientFactory:
@@ -21,24 +26,39 @@ class TelethonClientFactory:
         self.proxy_url = proxy_url
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
 
-    def create(self, session_name: str) -> TelegramClient:
+    def create(self, session_name: str, proxy_url: str | None = None) -> TelegramClient:
         session_path = self.sessions_dir / session_name
-        proxy = self._parse_proxy(self.proxy_url) if self.proxy_url else None
-        return TelegramClient(str(session_path), self.api_id, self.api_hash, proxy=proxy)
+        effective = proxy_url if proxy_url is not None else self.proxy_url
+        return self._build_client(str(session_path), effective)
+
+    def _build_client(self, session_path: str, proxy_url: str | None) -> TelegramClient:
+        if proxy_url and is_mtproto_proxy(proxy_url):
+            mtproxy = parse_mtproto_for_telethon(proxy_url)
+            return TelegramClient(
+                session_path,
+                self.api_id,
+                self.api_hash,
+                connection=ConnectionTcpMTProxyRandomizedIntermediate,
+                proxy=mtproxy,
+            )
+        proxy = parse_proxy_for_telethon(proxy_url) if proxy_url else None
+        return TelegramClient(session_path, self.api_id, self.api_hash, proxy=proxy)
 
     @staticmethod
-    def _parse_proxy(proxy_url: str) -> tuple:
-        parsed = urlparse(proxy_url)
-        scheme = (parsed.scheme or "socks5").lower()
-        host = parsed.hostname or "127.0.0.1"
-        port = parsed.port or 1080
-        if scheme in {"socks5", "socks"}:
-            return ("socks5", host, port)
-        if scheme == "socks4":
-            return ("socks4", host, port)
-        if scheme in {"http", "https"}:
-            return ("http", host, port)
-        match = re.match(r"^(socks5|socks4|http)://([^:]+):(\d+)$", proxy_url.strip(), re.I)
-        if match:
-            return (match.group(1).lower(), match.group(2), int(match.group(3)))
-        raise ValueError(f"Unsupported proxy URL: {proxy_url}")
+    def validate_proxy(proxy_url: str) -> None:
+        if is_mtproto_proxy(proxy_url):
+            parse_mtproto_for_telethon(proxy_url)
+            return
+        parsed = parse_proxy_for_telethon(proxy_url)
+        if parsed is None:
+            raise ValueError("Proxy URL is empty.")
+
+    @staticmethod
+    def parse_proxy(proxy_url: str) -> tuple:
+        TelethonClientFactory.validate_proxy(proxy_url)
+        if is_mtproto_proxy(proxy_url):
+            return parse_mtproto_for_telethon(proxy_url)
+        parsed = parse_proxy_for_telethon(proxy_url)
+        if parsed is None:
+            raise ValueError("Proxy URL is empty.")
+        return parsed

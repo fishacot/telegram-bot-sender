@@ -12,6 +12,7 @@ from app.config import get_settings
 from app.container import get_container, shutdown, startup
 from app.infrastructure.bot_notifier import BotNotifier
 from app.infrastructure.db.session import SessionLocal
+from app.infrastructure.agent.error_store import error_store
 from app.infrastructure.logging.logger import configure_logging
 from app.infrastructure.repositories.campaign_repository import CampaignRepository
 
@@ -69,6 +70,20 @@ async def run() -> None:
         logger.info("Using TELEGRAM_PROXY for Bot API connection")
     bot = Bot(**bot_kwargs)
     BotNotifier.register(bot)
+
+    if settings.ai_agent_enabled and settings.agent_notify_on_error:
+
+        async def _agent_error_notify(record) -> None:
+            for admin_id in settings.admin_id_list:
+                await BotNotifier.send(
+                    admin_id,
+                    f"⚠️ <b>Ошибка</b> ({record.source})\n"
+                    f"<code>{record.message[:350]}</code>\n\n"
+                    "🤖 Агент → <b>Разбор ошибок</b>",
+                )
+
+        error_store.set_notify_callback(_agent_error_notify)
+
     dispatcher = build_dispatcher()
     logger.info("Starting bot polling")
     try:

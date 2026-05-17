@@ -1,74 +1,75 @@
-from aiogram import F, Router
-from aiogram.filters import Command, StateFilter
-from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+import io
 
-from app.bot.keyboards.menu import BTN_CANCEL, main_menu_keyboard
-from app.bot.states.account_states import AccountUploadState
+from aiogram import F, Router
+from aiogram.filters import StateFilter
+from aiogram.fsm.context import FSMContext
+from aiogram.types import CallbackQuery, Message
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.bot.keyboards.menu import BTN_CANCEL, cancel_row_keyboard, main_menu_keyboard
+from app.bot.states.account_states import AccountProxyState, AccountUploadState
 from app.bot.texts import ru as texts
 from app.config import get_settings
 from app.container import get_container
+from app.domain.proxy_url import BulkProxyAssignResult, ProxyParseError, mask_proxy_url
 from app.infrastructure.db.models import Account
 from app.infrastructure.db.session import SessionLocal
+from app.infrastructure.telethon_clients.factory import TelethonClientFactory
 from app.services.account_import_service import AccountImportError, AccountImportService
+from app.services.account_proxy_service import AccountProxyService
 from app.services.audit_service import AuditService
-from sqlalchemy import select
 
 router = Router()
 
 
-@router.message(Command("accounts"))
-async def accounts_handler(message: Message) -> None:
-    async with SessionLocal() as session:
-        result = await session.execute(select(Account).order_by(Account.id))
-        accounts = list(result.scalars().all())
-    if not accounts:
-        await message.answer(
-            "👤 Аккаунтов пока нет.\n"
-            "Меню → <b>👤 Аккаунты</b> → <b>➕ Загрузить .session</b>"
-        )
-        return
-    lines = [
-        f"#{a.id} {a.name} role={a.role} health={a.health_status} session={a.session_path}"
-        for a in accounts
-    ]
-    await message.answer("Accounts:\n" + "\n".join(lines))
-
-
-@router.message(Command("account_upload"))
-async def account_upload_handler(message: Message, state: FSMContext) -> None:
-    parts = (message.text or "").split()
-    session_name = parts[1] if len(parts) > 1 else None
-    role = parts[2] if len(parts) > 2 else "lead"
-
-    if session_name:
-        try:
-            session_name = AccountImportService.normalize_session_name(session_name)
-        except AccountImportError as error:
-            await message.answer(str(error))
-            return
-        await state.set_state(AccountUploadState.waiting_file)
-        await state.update_data(session_name=session_name, role=role)
-        await message.answer(
-            f"Send the `.session` file for account `{session_name}` (role: {role}).\n"
-            "Cancel: /cancel"
-        )
-        return
-
-    await state.set_state(AccountUploadState.waiting_file)
-    await state.update_data(session_name=None, role="lead")
-    await message.answer(
-        "Send a `.session` file.\n"
-        "Caption format: `acc1` or `acc1 support`\n"
-        "Or use: /account_upload acc1 lead\n"
-        "Cancel: /cancel"
+def _make_proxy_service(session: AsyncSession) -> AccountProxyService:
+    settings = get_settings()
+    factory = TelethonClientFactory(
+        sessions_dir=settings.sessions_dir,
+        api_id=settings.telegram_api_id,
+        api_hash=settings.telegram_api_hash,
+        proxy_url=settings.telegram_proxy,
     )
+    return AccountProxyService(session, factory)
 
 
-@router.message(Command("cancel"), StateFilter(AccountUploadState.waiting_file))
-async def account_upload_cancel_handler(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Session upload cancelled.")
+async def _read_proxy_payload(message: Message) -> str:
+    if message.document:
+        name = (message.document.file_name or "").lower()
+        if not name.endswith(".txt"):
+            raise ValueError("Пришлите файл .txt со списком прокси (по одной строке).")
+        buffer = io.BytesIO()
+        await message.bot.download(message.document, destination=buffer)
+        return buffer.getvalue().decode("utf-8", errors="replace")
+    text = (message.text or "").strip()
+    if not text:
+        raise ValueError("Отправьте текст со списком прокси или файл .txt.")
+    return text
+
+
+def _format_bulk_result(result: BulkProxyAssignResult) -> str:
+    lines = [f"✅ Обновлено аккаунтов: <b>{len(result.updated)}</b>"]
+    for account_id, name, proxy_label in result.updated[:12]:
+        lines.append(f"  #{account_id} <b>{name}</b> → {proxy_label}")
+    if len(result.updated) > 12:
+        lines.append(f"  … и ещё {len(result.updated) - 12}")
+    if result.unchanged_account_names:
+        names = ", ".join(result.unchanged_account_names[:8])
+        suffix = "…" if len(result.unchanged_account_names) > 8 else ""
+        lines.append(
+            f"\n⚠️ Без изменений (не хватило строк в списке): {names}{suffix}"
+        )
+    if result.errors:
+        lines.append("\n❌ Ошибки:")
+        lines.extend(f"  • {err}" for err in result.errors[:8])
+    return "\n".join(lines)
+
+
+async def _invalidate_proxy_clients(account_ids: list[int]) -> None:
+    adapter = get_container().telethon_adapter
+    for account_id in account_ids:
+        await adapter.invalidate_account_client(account_id)
 
 
 @router.message(StateFilter(AccountUploadState.waiting_file), F.text == BTN_CANCEL)
@@ -100,9 +101,8 @@ async def account_upload_file_handler(message: Message, state: FSMContext) -> No
             session_name = AccountImportService.normalize_session_name(stem)
         except AccountImportError:
             await message.answer(
-                "Could not detect account name. Use:\n"
-                "/account_upload acc1 lead\n"
-                "or caption: acc1 lead"
+                "Не удалось определить имя.\n"
+                "Укажите в подписи к файлу: <code>acc1</code> или <code>acc1 support</code>"
             )
             return
 
@@ -132,35 +132,137 @@ async def account_upload_file_handler(message: Message, state: FSMContext) -> No
             reply_markup=main_menu_keyboard(),
         )
     except AccountImportError as error:
-        await message.answer(f"Upload failed: {error}")
+        await message.answer(f"❌ {error}")
     except Exception as error:  # noqa: BLE001
-        await message.answer(f"Upload failed: {error}")
+        await message.answer(f"❌ Ошибка загрузки: {error}")
 
 
-@router.message(Command("account_add"))
-async def account_add_handler(message: Message) -> None:
-    parts = (message.text or "").split()
-    if len(parts) < 3:
-        await message.answer(
-            "Usage: /account_add <name> <session_path> [role]\n"
-            "Easier: /account_upload <name> [role] + send .session file"
+@router.callback_query(F.data.startswith("accproxy:acc:"))
+async def accproxy_pick(callback: CallbackQuery, state: FSMContext) -> None:
+    account_id = int(callback.data.split(":")[-1])
+    await state.set_state(AccountProxyState.waiting_proxy)
+    await state.update_data(proxy_account_id=account_id)
+    await callback.answer()
+    if callback.message:
+        await callback.message.answer(
+            "Отправьте прокси одной строкой:\n"
+            "<code>socks5://host:1080</code>\n"
+            "<code>socks5://user:pass@host:1080</code>\n"
+            "<code>http://host:8080</code>\n"
+            "<code>host:443:secret</code> (MTProto)\n\n"
+            "Сброс: <code>нет</code>",
+            reply_markup=cancel_row_keyboard(),
         )
+
+
+@router.callback_query(F.data == "accproxy:cancel")
+async def accproxy_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
+    await callback.answer()
+    if callback.message:
+        await callback.message.answer(texts.CANCELLED, reply_markup=main_menu_keyboard())
+
+
+@router.message(
+    StateFilter(
+        AccountProxyState.waiting_proxy,
+        AccountProxyState.waiting_bulk,
+        AccountProxyState.waiting_all,
+    ),
+    F.text == BTN_CANCEL,
+)
+async def accproxy_cancel_text(message: Message, state: FSMContext) -> None:
+    await state.clear()
+    await message.answer(texts.CANCELLED, reply_markup=main_menu_keyboard())
+
+
+@router.message(StateFilter(AccountProxyState.waiting_proxy))
+async def accproxy_set_text(message: Message, state: FSMContext) -> None:
+    data = await state.get_data()
+    account_id = data.get("proxy_account_id")
+    if not account_id:
+        await state.clear()
+        await message.answer("Сессия сброшена. Начните снова из меню Аккаунты.")
         return
-    name, session_path = parts[1], parts[2]
-    role = parts[3] if len(parts) > 3 else "lead"
-    async with SessionLocal() as session:
-        existing = await session.execute(select(Account).where(Account.name == name))
-        if existing.scalar_one_or_none():
-            await message.answer("Account with this name already exists.")
-            return
-        account = Account(
-            name=name,
-            session_path=session_path,
-            role=role,
-            is_active=True,
-            health_status="active",
-        )
-        session.add(account)
-        await session.commit()
-        await session.refresh(account)
-    await message.answer(f"Account #{account.id} added: {name} ({session_path})")
+    try:
+        async with SessionLocal() as session:
+            service = _make_proxy_service(session)
+            account = await service.set_account_proxy(int(account_id), message.text or "")
+            await AuditService(session).log(
+                message.from_user.id if message.from_user else 0,
+                "account.set_proxy",
+                {"account_id": account.id, "proxy": mask_proxy_url(account.proxy)},
+            )
+    except ProxyParseError as error:
+        await message.answer(f"❌ {error}")
+        return
+    except ValueError as error:
+        await message.answer(f"❌ {error}")
+        return
+    await get_container().telethon_adapter.invalidate_account_client(int(account_id))
+    await state.clear()
+    await message.answer(
+        f"✅ Прокси для #{account.id} <b>{account.name}</b>: {mask_proxy_url(account.proxy)}",
+        reply_markup=main_menu_keyboard(),
+    )
+
+
+@router.message(StateFilter(AccountProxyState.waiting_bulk))
+async def accproxy_bulk_input(message: Message, state: FSMContext) -> None:
+    actor_id = message.from_user.id if message.from_user else 0
+    try:
+        payload = await _read_proxy_payload(message)
+    except ValueError as error:
+        await message.answer(str(error))
+        return
+
+    try:
+        async with SessionLocal() as session:
+            service = _make_proxy_service(session)
+            result = await service.bulk_assign_by_order(payload)
+            await AuditService(session).log(
+                actor_id,
+                "account.bulk_proxy",
+                {"updated": len(result.updated), "errors": len(result.errors)},
+            )
+    except ProxyParseError as error:
+        await message.answer(f"❌ {error}")
+        return
+    except ValueError as error:
+        await message.answer(f"❌ {error}")
+        return
+
+    account_ids = [item[0] for item in result.updated]
+    await _invalidate_proxy_clients(account_ids)
+    await state.clear()
+    await message.answer(_format_bulk_result(result), reply_markup=main_menu_keyboard())
+
+
+@router.message(StateFilter(AccountProxyState.waiting_all))
+async def accproxy_all_input(message: Message, state: FSMContext) -> None:
+    actor_id = message.from_user.id if message.from_user else 0
+    raw = (message.text or "").strip()
+    if not raw:
+        await message.answer("Отправьте одну строку с прокси.")
+        return
+
+    try:
+        async with SessionLocal() as session:
+            service = _make_proxy_service(session)
+            result = await service.apply_proxy_to_all(raw)
+            await AuditService(session).log(
+                actor_id,
+                "account.proxy_all",
+                {"updated": len(result.updated)},
+            )
+    except ProxyParseError as error:
+        await message.answer(f"❌ {error}")
+        return
+    except ValueError as error:
+        await message.answer(f"❌ {error}")
+        return
+
+    account_ids = [item[0] for item in result.updated]
+    await _invalidate_proxy_clients(account_ids)
+    await state.clear()
+    await message.answer(_format_bulk_result(result), reply_markup=main_menu_keyboard())

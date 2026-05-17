@@ -1,5 +1,6 @@
 from app.bot.handlers import (
     accounts,
+    agent,
     campaigns,
     chats,
     joiner,
@@ -16,6 +17,7 @@ from app.bot.handlers import (
 
 ALL_ROUTERS = [
     menu.router,
+    agent.router,
     ui_wizard.router,
     start.router,
     accounts.router,
