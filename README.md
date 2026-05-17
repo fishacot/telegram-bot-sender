@@ -102,7 +102,13 @@ python -m app.main
 
 5. В Telegram найдите своего бота → `/start`. Доступ только у id из `ADMIN_IDS`.
 
-## Деплой на Railway (рекомендуется, если с ПК timeout)
+## Деплой бесплатно (без оплаты) — Render
+
+**Рекомендуется:** [docs/DEPLOY_FREE_RENDER.md](docs/DEPLOY_FREE_RENDER.md) — $0, копируй-вставляй.
+
+Railway на trial **кончится** — не рассчитывайте на него без оплаты.
+
+## Деплой на Railway (если есть кредиты)
 
 Пошагово: **[docs/DEPLOY_RAILWAY.md](docs/DEPLOY_RAILWAY.md)**
 

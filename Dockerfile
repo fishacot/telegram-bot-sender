@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     SESSIONS_DIR=/data/sessions
 
-RUN mkdir -p /data/sessions
+RUN mkdir -p /data/sessions /data
 
 COPY pyproject.toml README.md ./
 COPY app ./app

@@ -1,0 +1,21 @@
+# Render Blueprint (бесплатный план). Инструкция: docs/DEPLOY_FREE_RENDER.md
+services:
+  - type: web
+    name: telegram-bot-sender
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_IDS
+        value: "8760867989"
+      - key: TELEGRAM_API_ID
+        value: "2040"
+      - key: TELEGRAM_API_HASH
+        value: b18441a1ff607e10a989891a5462e627
+      - key: DATABASE_URL
+        value: sqlite+aiosqlite:///./app.db
+      - key: SESSIONS_DIR
+        value: ./sessions

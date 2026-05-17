@@ -1,6 +1,8 @@
 import asyncio
 import logging
+import os
 
+from aiohttp import web
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -26,9 +28,28 @@ async def _on_campaign_complete(campaign_id: int) -> None:
             await repo.update_campaign_status(campaign_id, "completed")
 
 
+async def _start_health_server() -> web.AppRunner | None:
+    """Render and similar hosts require HTTP on PORT; Railway does not set PORT."""
+    port = os.getenv("PORT")
+    if not port:
+        return None
+    app = web.Application()
+
+    async def health(_request: web.Request) -> web.Response:
+        return web.Response(text="ok")
+
+    app.router.add_get("/", health)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    await web.TCPSite(runner, "0.0.0.0", int(port)).start()
+    logger.info("Health check listening on port %s", port)
+    return runner
+
+
 async def run() -> None:
     settings = get_settings()
     configure_logging()
+    health_runner = await _start_health_server()
     container = await startup()
     container.sender_service.set_campaign_complete_handler(_on_campaign_complete)
 
@@ -55,6 +76,8 @@ async def run() -> None:
     finally:
         await bot.session.close()
         await shutdown()
+        if health_runner:
+            await health_runner.cleanup()
 
 
 def main() -> None:
