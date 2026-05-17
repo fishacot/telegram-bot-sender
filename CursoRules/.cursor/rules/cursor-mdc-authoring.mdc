@@ -1,0 +1,11 @@
+---
+description: Оформление правил Cursor (.mdc) в этом проекте
+globs: .cursor/rules/**/*.mdc
+alwaysApply: false
+---
+
+# Правила для `.mdc`
+
+- В начале файла — YAML frontmatter с полями `description`, `alwaysApply`, при необходимости `globs`.
+- Одна тема на файл; держи текст коротким и с глаголами («запусти», «не меняй», «спроси если»).
+- Не вставляй длинные вырезки из чужих README; канон проверок — `AGENTS.md` → Verification; для Markdown в этом репо после правок запускай `npm run verify`.

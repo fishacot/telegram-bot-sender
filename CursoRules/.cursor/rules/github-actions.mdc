@@ -1,0 +1,10 @@
+---
+description: GitHub Actions — аккуратные workflow для этого репо
+globs: .github/workflows/*.yml
+alwaysApply: false
+---
+
+# CI workflow
+
+- Держи workflow минимальным: checkout, setup-node с `cache: npm`, `npm ci`, `npm run verify`.
+- Меняя версии `actions/*`, проверяй, что путь к скриптам проверки в `AGENTS.md` по-прежнему верен.

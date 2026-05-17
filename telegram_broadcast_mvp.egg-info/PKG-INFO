@@ -1,0 +1,285 @@
+Metadata-Version: 2.4
+Name: telegram-broadcast-mvp
+Version: 0.1.0
+Summary: Safe Telegram broadcast platform MVP with session accounts.
+Requires-Python: >=3.11
+Description-Content-Type: text/markdown
+Requires-Dist: aiogram>=3.7.0
+Requires-Dist: telethon>=1.36.0
+Requires-Dist: sqlalchemy>=2.0.30
+Requires-Dist: alembic>=1.13.2
+Requires-Dist: pydantic-settings>=2.3.4
+Requires-Dist: apscheduler>=3.10.4
+Requires-Dist: aiosqlite>=0.20.0
+Requires-Dist: python-json-logger>=2.0.7
+Requires-Dist: httpx>=0.27.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.2.2; extra == "dev"
+Requires-Dist: pytest-asyncio>=0.23.7; extra == "dev"
+Requires-Dist: ruff>=0.5.0; extra == "dev"
+
+# Telegram Broadcast MVP (Safe Session Accounts)
+
+Платформа управления Telegram-рассылками через session-аккаунты (Telethon) с панелью оператора (Aiogram).
+
+## Возможности
+
+- Session-аккаунты, паки аккаунтов, шаблоны (text + team dialogue)
+- Кампании: `single`, `rotate`, `team_dialogue`, `scheduled_once`
+- ComplianceGuard: без ЛС, только group/supergroup/channel с правами
+- Preflight + explicit `CONFIRM` перед запуском
+- Pause / Resume / Stop кампании
+- Warmup (безопасное чтение групп), Joiner (@username и invite-ссылки)
+- AI preflight hints (stub provider)
+- Отчёты + CSV export
+
+## Требования
+
+- Python 3.11+
+- Telegram Bot Token (@BotFather)
+- Telegram API ID/HASH (для Telethon, по умолчанию 2040)
+- При блокировке Telegram: VPN/прокси
+
+## Установка
+
+```powershell
+cd "c:\Users\user\Desktop\телеграм рассылка"
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+copy .env.example .env
+```
+
+Заполните `.env`:
+
+```env
+BOT_TOKEN=...
+ADMIN_IDS=ваш_telegram_user_id
+TELEGRAM_API_ID=2040
+TELEGRAM_API_HASH=b18441a1ff607e10a989891a5462e627
+TELEGRAM_PROXY=socks5://127.0.0.1:1080
+```
+
+Миграции и (опционально) демо-данные:
+
+```powershell
+python -m alembic upgrade head
+python scripts/seed_demo.py
+```
+
+Запуск:
+
+```powershell
+python -m app.main
+# или
+.\scripts\run.ps1
+```
+
+## Прокси (когда нужны)
+
+Прокси нужен, если **бот** или **Telethon** не достучались до Telegram:
+
+- бот не отвечает, в логах timeout к `api.telegram.org`
+- join/отправка падают с сетевой ошибкой
+
+В `.env` добавьте (подставьте свой хост/порт):
+
+```env
+TELEGRAM_PROXY=socks5://127.0.0.1:1080
+```
+
+Поддерживаются `socks5`, `socks4`, `http`. Прокси используется и для Aiogram (бот), и для Telethon (session-аккаунты).
+
+Если Telegram открывается без VPN — строку `TELEGRAM_PROXY` можно не указывать.
+
+## Открыть бота (локально, Windows)
+
+1. Создайте бота у [@BotFather](https://t.me/BotFather) → скопируйте `BOT_TOKEN`.
+2. Узнайте свой Telegram user id ([@userinfobot](https://t.me/userinfobot)) → `ADMIN_IDS`.
+3. Заполните `.env` (см. выше).
+4. В терминале:
+
+```powershell
+cd "c:\Users\user\Desktop\телеграм рассылка"
+.\.venv\Scripts\Activate.ps1
+python -m alembic upgrade head
+python -m app.main
+```
+
+5. В Telegram найдите своего бота → `/start`. Доступ только у id из `ADMIN_IDS`.
+
+## Деплой (VPS / сервер 24/7)
+
+Минимальный вариант на Linux:
+
+```bash
+cd /opt/telegram-broadcast
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+cp .env.example .env   # заполнить BOT_TOKEN, ADMIN_IDS, при необходимости TELEGRAM_PROXY
+python -m alembic upgrade head
+# один раз на сервере — авторизация session (интерактивно):
+python scripts/auth_session.py --name acc1
+```
+
+Unit systemd `/etc/systemd/system/telegram-broadcast.service`:
+
+```ini
+[Unit]
+Description=Telegram Broadcast Bot
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/telegram-broadcast
+EnvironmentFile=/opt/telegram-broadcast/.env
+ExecStart=/opt/telegram-broadcast/.venv/bin/python -m app.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now telegram-broadcast
+sudo journalctl -u telegram-broadcast -f
+```
+
+Важно: папки `sessions/` и файл `app.db` должны сохраняться на диске (не в tmp). Для PostgreSQL укажите `DATABASE_URL` в `.env`.
+
+## Первая рассылка (пошагово)
+
+### A. Session-аккаунт
+
+```powershell
+python scripts/auth_session.py --name acc1
+```
+
+Введите телефон и код из Telegram. Файл сессии: `sessions/acc1.session`.
+
+### B. В боте
+
+| Шаг | Команда | Пример |
+|-----|---------|--------|
+| 1 | `/account_add` | `/account_add acc1 acc1 lead` |
+| 2 | Добавить чат | `/chat_add_link_sync 1 @your_test_group` |
+| 3 | Список чатов | `/chats` → запомните **id** (первая колонка `#1`) |
+| 4 | Шаблон | `/template_add promo Hello! Test from {shop}` |
+| 5 | Кампания | `/campaign_new` |
+
+Мастер кампании:
+
+1. `MANUAL:1` — account id `1`
+2. `1` — chat id из `/chats` (внутренний id, не tg_chat_id)
+3. `1` — template id
+4. `15,30,5,single` — задержки 15–30 сек, макс 5 сообщ/час, режим single
+5. `CONTINUE` → прочитать preflight
+6. `CONFIRM` — старт
+
+Проверка: `/campaigns`, `/report 1`, `/logs`.
+
+Остановка: `/campaign_stop 1`.
+
+### C. Если `can_send: 0` после join
+
+Аккаунт не может писать в группу (права, бан, только чтение). Возьмите другую группу или выдайте права отправки.
+
+## Первичная настройка в боте (справочник)
+
+1. `/start`
+2. Авторизация session:
+   ```powershell
+   python scripts/auth_session.py --name acc1
+   ```
+3. `/account_add acc1 acc1 lead`
+4. `/chat_add_link_sync 1 @group` или `/chat_add <tg_chat_id> <title> <type> 1`
+5. `/template_add welcome Hello from {shop}`
+6. `/pack_add default` → `/pack_bind 1 1`
+
+### Team dialogue template
+
+```text
+/template_add team_dialog Team promo
+/team_step_add 1 1 lead 0 Hi from {shop}
+/team_step_add 1 2 support 30 We can help in {city}
+```
+
+## Запуск кампании
+
+`/campaign_new` → шаги:
+
+1. `PACK:1` или `MANUAL:1`
+2. chat ids через запятую
+3. template id
+4. `15,30,20,single` (или `rotate`, `team_dialogue`, `scheduled_once,2026-05-17T20:00`)
+5. `CONTINUE`
+6. `CONFIRM`
+
+Управление:
+
+- `/campaign_pause <id>`
+- `/campaign_resume <id>`
+- `/campaign_stop <id>`
+- `/report <id>`
+
+## Joiner и Warmup
+
+Добавление чата в пул по ссылке или username (аккаунт должен быть авторизован):
+
+```text
+/join 1 @public_channel
+/join 1 https://t.me/+inviteHash
+/join 1 https://t.me/joinchat/inviteHash
+/chat_add_link 1 channelname
+/chat_add_link_sync 1 https://t.me/some_group
+/warmup_start 1 soft
+/warmup_stop 1
+/logs
+```
+
+Поддерживаемые форматы target: `@username`, `username`, `https://t.me/username`, `https://t.me/+…`, `https://t.me/joinchat/…`, `tg://join?invite=…`.
+
+## Тесты
+
+```powershell
+python -m pytest
+python -m ruff check .
+```
+
+## Безопасность
+
+- Не коммитьте `.env` и `sessions/`
+- Перевыпускайте токен бота, если он попал в чат
+- AI не запускает кампании и не меняет compliance policy
+
+## Архитектура
+
+```text
+app/
+  bot/           # Aiogram handlers
+  services/      # business logic
+  infrastructure/# db, telethon, ai, scheduler
+  domain/        # entities, policies
+  container.py   # singletons
+```
+
+## Что ещё в плане (не блокирует первую рассылку)
+
+| Приоритет | Задача |
+|-----------|--------|
+| P1 | `/sync_chats` — импорт групп из диалогов аккаунта |
+| P1 | Задержки `min_delay_chat` / `cooldown_hours` в sender |
+| P2 | Команды `/chat_blacklist`, `/chat_archive` |
+| P2 | Прокси per-account (`Account.proxy`) |
+| P3 | CI, Docker, e2e-тесты Telethon |
+| P3 | Реальный AI-провайдер вместо stub |
+
+## Известные ограничения MVP
+
+- Joiner не добавляет приватные диалоги с пользователями (только группы/каналы)
+- Warmup — read-only активность в группах
+- PostgreSQL: смените `DATABASE_URL` в `.env`

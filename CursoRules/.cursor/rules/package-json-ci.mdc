@@ -1,0 +1,10 @@
+---
+description: package.json, lockfile и согласованность со скриптами проверки
+globs: package.json
+alwaysApply: false
+---
+
+# Зависимости и скрипты
+
+- После изменения `scripts` или `devDependencies` запусти `npm run verify` и при необходимости обнови раздел **Verification** в `AGENTS.md`.
+- Не выполняй слепо `npm audit fix --force` — сначала оцени риск поломки; при сомнении спроси человека.

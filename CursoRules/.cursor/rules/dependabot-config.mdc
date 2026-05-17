@@ -1,0 +1,10 @@
+---
+description: Dependabot — аккуратные обновления npm
+globs: .github/dependabot.yml
+alwaysApply: false
+---
+
+# Dependabot
+
+- Не увеличивай `open-pull-requests-limit` без причины; не отключай обновления без обсуждения.
+- После смены экосистемы или каталога пакетов проверь, что `directory` указывает на корень с `package.json`.

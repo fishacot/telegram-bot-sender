@@ -1,0 +1,31 @@
+from app.bot.handlers import (
+    accounts,
+    campaigns,
+    chats,
+    joiner,
+    logs,
+    menu,
+    packs,
+    report,
+    settings,
+    start,
+    templates,
+    ui_wizard,
+    warmup,
+)
+
+ALL_ROUTERS = [
+    menu.router,
+    ui_wizard.router,
+    start.router,
+    accounts.router,
+    packs.router,
+    chats.router,
+    templates.router,
+    campaigns.router,
+    warmup.router,
+    joiner.router,
+    settings.router,
+    logs.router,
+    report.router,
+]
