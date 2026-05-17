@@ -28,18 +28,16 @@
 
 Сервис бота → **Variables** → **RAW Editor** (или по одной).
 
-Скопируйте и **замените только BOT_TOKEN** на свой от BotFather:
+Скопируйте файл **`render.env.local`** из папки проекта (на Railway замените пути на Railway-вариант ниже).
+
+Для **Railway** (Volume `/data`) откройте `render.env.local` и измените только:
 
 ```env
-BOT_TOKEN=ВСТАВЬТЕ_ТОКЕН_ОТ_BOTFATHER
-ADMIN_IDS=8760867989
-TELEGRAM_API_ID=2040
-TELEGRAM_API_HASH=b18441a1ff607e10a989891a5462e627
 DATABASE_URL=sqlite+aiosqlite:////data/app.db
 SESSIONS_DIR=/data/sessions
-LOG_LEVEL=INFO
-LOG_JSON=true
 ```
+
+Остальные строки (`BOT_TOKEN`, `ADMIN_IDS`, …) уже заполнены.
 
 **Не добавляйте** `DATABASE_URL` из PostgreSQL.
 

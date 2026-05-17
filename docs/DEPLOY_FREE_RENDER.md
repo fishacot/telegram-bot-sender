@@ -34,18 +34,16 @@ Railway на trial **рано или поздно остановится**.
 
 ## 3. Environment Variables
 
-Вкладка **Environment** → Add Environment Variable (или Bulk):
+Вкладка **Environment** → **Add from .env** или вставьте построчно.
 
-```env
-BOT_TOKEN=ВСТАВЬТЕ_ТОКЕН_ОТ_BOTFATHER
-ADMIN_IDS=8760867989
-TELEGRAM_API_ID=2040
-TELEGRAM_API_HASH=b18441a1ff607e10a989891a5462e627
-DATABASE_URL=sqlite+aiosqlite:///./app.db
-SESSIONS_DIR=./sessions
-LOG_LEVEL=INFO
-LOG_JSON=true
+**Скопируйте весь файл** `render.env.local` из корня проекта на ПК  
+(файл **не в GitHub** — там уже ваши данные):
+
 ```
+c:\Users\user\Desktop\телеграм рассылка\render.env.local
+```
+
+Откройте в блокноте → Ctrl+A → Ctrl+C → вставьте в Render.
 
 **PostgreSQL не нужен.**
 

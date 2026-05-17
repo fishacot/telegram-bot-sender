@@ -9,6 +9,7 @@ build/
 dist/
 
 .env
+render.env.local
 app.db
 sessions/
 reports/
