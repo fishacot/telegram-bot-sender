@@ -5,20 +5,24 @@ import logging
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import InlineKeyboardMarkup, Message, ReplyKeyboardMarkup
 
+_ReplyMarkup = InlineKeyboardMarkup | ReplyKeyboardMarkup | None
+
 logger = logging.getLogger(__name__)
 
 
 async def send_screen(
     message: Message,
     text: str,
-    reply_markup: InlineKeyboardMarkup | ReplyKeyboardMarkup | None = None,
+    reply_markup: _ReplyMarkup = None,
     *,
     edit: bool = False,
 ) -> Message:
-    """Отправить или обновить экран; при edit игнорирует «message is not modified»."""
+    """Отправить или обновить экран; reply-клавиатуру нельзя передать в edit_text."""
+    if edit and isinstance(reply_markup, ReplyKeyboardMarkup):
+        edit = False
     if edit:
         try:
-            if reply_markup is not None:
+            if isinstance(reply_markup, InlineKeyboardMarkup):
                 await message.edit_text(text, reply_markup=reply_markup)
             else:
                 await message.edit_text(text)

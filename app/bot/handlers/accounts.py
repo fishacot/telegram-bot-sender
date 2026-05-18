@@ -73,10 +73,17 @@ async def _invalidate_proxy_clients(account_ids: list[int]) -> None:
         await adapter.invalidate_account_client(account_id)
 
 
-@router.message(StateFilter(AccountUploadState.waiting_file), F.text == BTN_CANCEL)
-async def account_upload_cancel_text(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer(texts.CANCELLED, reply_markup=main_menu_keyboard())
+@router.message(StateFilter(AccountUploadState.waiting_file), F.text)
+async def account_upload_text_hint(message: Message, state: FSMContext) -> None:
+    if message.text == BTN_CANCEL:
+        await state.clear()
+        await message.answer(texts.CANCELLED, reply_markup=main_menu_keyboard())
+        return
+    await message.answer(
+        "📎 Отправьте файл <code>.session</code> как документ.\n"
+        "В подписи: <code>acc1</code> или <code>acc1 support</code>",
+        reply_markup=cancel_row_keyboard(),
+    )
 
 
 @router.message(StateFilter(AccountUploadState.waiting_file), F.document)

@@ -102,7 +102,11 @@ async def run() -> None:
         error_store.set_notify_callback(_agent_error_notify)
 
     dispatcher = build_dispatcher()
-    logger.info("Starting bot polling")
+    logger.info(
+        "Starting bot polling (admins=%s, sessions=%s)",
+        len(settings.admin_id_list),
+        settings.sessions_dir,
+    )
     try:
         await dispatcher.start_polling(bot)
     finally:

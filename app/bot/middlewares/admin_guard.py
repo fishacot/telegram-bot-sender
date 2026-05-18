@@ -23,9 +23,16 @@ class AdminGuardMiddleware(BaseMiddleware):
             user_id = event.from_user.id
 
         if user_id is not None and user_id not in self.admin_ids:
+            deny_text = (
+                "⛔ <b>Доступ только для администратора</b>\n\n"
+                f"Ваш Telegram ID: <code>{user_id}</code>\n"
+                "Добавьте его в <code>ADMIN_IDS</code> на Render и перезапустите сервис."
+            )
             if isinstance(event, Message):
-                await event.answer("Access denied. Admin only.")
+                await event.answer(deny_text)
             elif isinstance(event, CallbackQuery):
-                await event.answer("Доступ только для админа", show_alert=True)
+                await event.answer("Нет доступа", show_alert=True)
+                if event.message:
+                    await event.message.answer(deny_text)
             return None
         return await handler(event, data)

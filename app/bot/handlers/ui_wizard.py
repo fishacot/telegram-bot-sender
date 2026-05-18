@@ -633,6 +633,15 @@ async def cu_confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
             )
         await state.clear()
         return
+    except Exception as error:  # noqa: BLE001
+        await callback.answer("Ошибка запуска", show_alert=True)
+        if callback.message:
+            await callback.message.answer(
+                f"❌ {humanize_error(error)}",
+                reply_markup=main_menu_keyboard(),
+            )
+        await state.clear()
+        return
 
     await state.clear()
     await callback.answer("Запущено!")
@@ -641,10 +650,10 @@ async def cu_confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
             callback.message,
             f"✅ Рассылка <b>#{campaign.id}</b> запущена\n"
             f"В очереди: <b>{queued}</b> сообщ.\n\n"
-            "📋 <b>Мои рассылки</b> — управление",
-            main_menu_keyboard(),
+            "📋 <b>Мои рассылки</b> — пауза и отчёт",
             edit=True,
         )
+        await callback.message.answer("👇", reply_markup=main_menu_keyboard())
 
 
 @router.callback_query(F.data == "cu:cancel")
@@ -821,9 +830,16 @@ async def chat_wait_link(message: Message, state: FSMContext) -> None:
                 {"chat_id": chat.id, "target": parsed.storage_key},
             )
         await state.clear()
+        if chat.can_send:
+            hint = "Можно включать в <b>📤 Новая рассылка</b>."
+        else:
+            hint = (
+                "В рассылку не попадёт, пока нет права писать.\n"
+                "Проверьте права в группе или добавьте чат другим аккаунтом."
+            )
         await message.answer(
             f"✅ Чат <b>#{chat.id}</b> {chat.title}\n"
-            f"Писать: {'да' if chat.can_send else 'нет'}",
+            f"Писать: <b>{'да' if chat.can_send else 'нет'}</b>\n\n{hint}",
             reply_markup=main_menu_keyboard(),
         )
     except Exception as error:  # noqa: BLE001

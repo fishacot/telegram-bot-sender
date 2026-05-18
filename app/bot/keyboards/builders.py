@@ -76,9 +76,12 @@ def setup_gap_keyboard() -> InlineKeyboardMarkup:
         inline_keyboard=[
             [
                 InlineKeyboardButton(text="➕ Аккаунт", callback_data="go:acc"),
-                InlineKeyboardButton(text="➕ Чат", callback_data="go:cht"),
+                InlineKeyboardButton(text="🌐 Прокси", callback_data="acc:proxy_menu"),
             ],
-            [InlineKeyboardButton(text="➕ Шаблон", callback_data="go:tpl")],
+            [
+                InlineKeyboardButton(text="➕ Чат", callback_data="go:cht"),
+                InlineKeyboardButton(text="➕ Шаблон", callback_data="go:tpl"),
+            ],
             [InlineKeyboardButton(text="🏠 Меню", callback_data="nav:home")],
         ]
     )

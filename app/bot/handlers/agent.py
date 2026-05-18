@@ -9,6 +9,7 @@ from app.bot.keyboards.builders import section_agent_keyboard
 from app.bot.keyboards.menu import BTN_AGENT, BTN_CANCEL, cancel_row_keyboard, main_menu_keyboard
 from app.bot.states.agent_states import AgentAskState
 from app.bot.texts import ru as texts
+from app.bot.texts.errors_ru import humanize_error
 from app.config import get_settings
 from app.infrastructure.ai_provider.factory import build_ai_provider
 from app.infrastructure.agent.sandbox import AgentSandbox
@@ -126,12 +127,19 @@ async def ag_ask_question(message: Message, state: FSMContext) -> None:
         return
     actor_id = message.from_user.id if message.from_user else 0
     await message.answer("⏳ Думаю…")
-    async with SessionLocal() as session:
-        result = await _make_service(session).ask(question, actor_id=actor_id)
-    await state.clear()
-    await message.answer(
-        ProjectAgentService.format_telegram_report(result),
-        reply_markup=main_menu_keyboard(),
-    )
+    try:
+        async with SessionLocal() as session:
+            result = await _make_service(session).ask(question, actor_id=actor_id)
+        await state.clear()
+        await message.answer(
+            ProjectAgentService.format_telegram_report(result),
+            reply_markup=main_menu_keyboard(),
+        )
+    except Exception as error:  # noqa: BLE001
+        await state.clear()
+        await message.answer(
+            f"❌ {humanize_error(error)}",
+            reply_markup=main_menu_keyboard(),
+        )
 
 

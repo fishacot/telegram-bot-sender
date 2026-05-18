@@ -67,6 +67,21 @@ async def cb_tool_logs(callback: CallbackQuery) -> None:
         await logs_handlers.send_logs_screen(callback.message, edit=True)
 
 
+@router.callback_query(F.data == "tool:myid")
+async def cb_tool_myid(callback: CallbackQuery) -> None:
+    user = callback.from_user
+    if not user:
+        await callback.answer("Нет данных пользователя", show_alert=True)
+        return
+    await callback.answer()
+    if callback.message:
+        await callback.message.answer(
+            "🆔 <b>Ваш Telegram ID</b>\n\n"
+            f"<code>{user.id}</code>\n\n"
+            "Скопируйте в <code>ADMIN_IDS</code> на Render, если бот не отвечает.",
+        )
+
+
 @router.message(F.text == BTN_HOME)
 @router.message(F.text == BTN_CANCEL)
 async def btn_home_or_cancel(message: Message, state: FSMContext) -> None:
@@ -98,7 +113,7 @@ async def main_menu_buttons(message: Message, state: FSMContext) -> None:
     elif text == BTN_AGENT:
         from app.bot.handlers import agent as agent_handlers
 
-        await agent_handlers.cmd_agent(message, state)
+        await agent_handlers.open_agent_menu(message, state)
     elif text == BTN_HELP:
         await message.answer(texts.HELP, reply_markup=main_menu_keyboard())
 

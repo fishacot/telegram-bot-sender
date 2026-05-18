@@ -24,7 +24,7 @@ def build_settings_text() -> str:
 def settings_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            nav_row(back="nav:home", home=False) or [],
+            [InlineKeyboardButton(text="🆔 Мой Telegram ID", callback_data="tool:myid")],
             [InlineKeyboardButton(text="🏠 Меню", callback_data="nav:home")],
         ]
     )
