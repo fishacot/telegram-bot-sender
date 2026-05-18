@@ -35,6 +35,7 @@ from app.bot.keyboards.menu import (
 from app.bot.states.account_states import AccountProxyState, AccountUploadState
 from app.bot.states.ui_states import CampaignUIState, ChatUIState, TemplateUIState
 from app.bot.texts import ru as texts
+from app.bot.texts.errors_ru import humanize_error
 from app.bot.ui.formatters import (
     build_setup_status,
     format_accounts_section,
@@ -104,12 +105,12 @@ async def _load_setup_status():
 
 async def show_dashboard(message: Message, *, edit: bool = False) -> None:
     _, _, _, _, status = await _load_setup_status()
-    text = format_dashboard(status) + "\n\n" + texts.WELCOME_HINT
+    steps = texts.FIRST_RUN_STEPS if not status.is_ready else ""
+    text = format_dashboard(status, steps_text=steps)
     if edit:
         await send_screen(message, text, dashboard_inline_keyboard(), edit=True)
     else:
-        await message.answer(text, reply_markup=dashboard_inline_keyboard())
-        await message.answer("👇 Разделы — кнопками ниже:", reply_markup=main_menu_keyboard())
+        await message.answer(text, reply_markup=main_menu_keyboard())
 
 
 async def show_accounts_section(message: Message, *, page: int = 0, edit: bool = False) -> None:
@@ -154,12 +155,29 @@ async def show_proxy_menu(callback: CallbackQuery) -> None:
         await send_screen(
             callback.message,
             "🌐 <b>Прокси</b>\n\n"
-            f"Аккаунтов: <b>{len(accounts)}</b>\n"
-            "<b>Порядок для списка:</b>\n"
+            f"Аккаунтов: <b>{len(accounts)}</b>\n\n"
+            "<b>🔄 N прокси → все</b> — 5 строк прокси разойдутся по всем аккаунтам по кругу.\n"
+            "<b>📋 1 строка = 1 аккаунт</b> — строго по порядку:\n"
             f"<pre>{preview}</pre>{extra}",
             section_proxy_keyboard(),
             edit=True,
         )
+
+
+async def start_proxy_rotate_message(message: Message, state: FSMContext) -> None:
+    accounts = await _load_accounts()
+    if not accounts:
+        await message.answer(texts.NO_ACCOUNTS, reply_markup=main_menu_keyboard())
+        return
+    await state.set_state(AccountProxyState.waiting_bulk_rotate)
+    await message.answer(
+        "🔄 <b>Распределить прокси на все аккаунты</b>\n\n"
+        f"Аккаунтов: <b>{len(accounts)}</b>. Отправьте <b>5–20 строк</b> прокси "
+        "(каждый сервер с новой строки).\n\n"
+        "Пример: 5 прокси → каждый аккаунт получит один из них по кругу.\n\n"
+        "Текстом или файлом <code>.txt</code>.",
+        reply_markup=cancel_row_keyboard(),
+    )
 
 
 async def start_proxy_bulk_message(message: Message, state: FSMContext) -> None:
@@ -455,7 +473,7 @@ async def cu_pick_preset(callback: CallbackQuery, state: FSMContext) -> None:
         "max_delay_msg": preset["max_delay_msg"],
         "min_delay_chat": 30,
         "max_delay_chat": 90,
-        "active_hours": "9-21",
+        "active_hours": "0-23",
         "max_per_acc_hour": preset["max_per_acc_hour"],
         "max_per_chat_day": 3,
         "cooldown_hours": 24,
@@ -475,11 +493,14 @@ async def cu_pick_preset(callback: CallbackQuery, state: FSMContext) -> None:
     excluded: list[str] = []
     account_name = "?"
     template_name = "?"
+    proxy_warning = ""
     async with SessionLocal() as session:
         account = await session.get(Account, int(data["account_id"]))
         template = await session.get(Template, int(data["template_id"]))
         if account:
             account_name = account.name
+            if not account.proxy:
+                proxy_warning = "⚠️ <i>Прокси не задан — из РФ отправка может не работать</i>"
         if template:
             template_name = template.name
         for chat_id in data.get("selected_chat_ids", []):
@@ -516,6 +537,7 @@ async def cu_pick_preset(callback: CallbackQuery, state: FSMContext) -> None:
             allowed_count=len(allowed),
             excluded_count=len(excluded),
             delay_label=delay_label,
+            proxy_warning=proxy_warning,
         ),
         campaign_confirm_keyboard(),
     )
@@ -605,7 +627,10 @@ async def cu_confirm_launch(callback: CallbackQuery, state: FSMContext) -> None:
     except (ComplianceError, ValueError) as error:
         await callback.answer()
         if callback.message:
-            await callback.message.answer(f"❌ {error}", reply_markup=main_menu_keyboard())
+            await callback.message.answer(
+                f"❌ {humanize_error(error)}",
+                reply_markup=main_menu_keyboard(),
+            )
         await state.clear()
         return
 
@@ -802,7 +827,7 @@ async def chat_wait_link(message: Message, state: FSMContext) -> None:
             reply_markup=main_menu_keyboard(),
         )
     except Exception as error:  # noqa: BLE001
-        await message.answer(f"❌ {error}", reply_markup=main_menu_keyboard())
+        await message.answer(f"❌ {humanize_error(error)}", reply_markup=main_menu_keyboard())
         await state.clear()
 
 

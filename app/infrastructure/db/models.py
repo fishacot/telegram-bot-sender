@@ -100,7 +100,7 @@ class CampaignSettings(Base):
     max_delay_msg: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     min_delay_chat: Mapped[int] = mapped_column(Integer, default=30, nullable=False)
     max_delay_chat: Mapped[int] = mapped_column(Integer, default=90, nullable=False)
-    active_hours: Mapped[str] = mapped_column(String(32), default="9-21", nullable=False)
+    active_hours: Mapped[str] = mapped_column(String(32), default="0-23", nullable=False)
     max_per_acc_hour: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     max_per_chat_day: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     cooldown_hours: Mapped[int] = mapped_column(Integer, default=24, nullable=False)

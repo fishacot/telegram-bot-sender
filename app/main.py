@@ -15,18 +15,35 @@ from app.infrastructure.db.session import SessionLocal
 from app.infrastructure.agent.error_store import error_store
 from app.infrastructure.logging.logger import configure_logging
 from app.infrastructure.repositories.campaign_repository import CampaignRepository
+from app.services.report_service import ReportService
 
 logger = logging.getLogger(__name__)
 
 
 async def _on_campaign_complete(campaign_id: int) -> None:
     container = get_container()
+    settings = get_settings()
     async with SessionLocal() as session:
         repo = CampaignRepository(session)
-        if campaign_id in container.sender_service.stopped_campaigns:
-            await repo.update_campaign_status(campaign_id, "failed")
-        else:
-            await repo.update_campaign_status(campaign_id, "completed")
+        stopped = campaign_id in container.sender_service.stopped_campaigns
+        status = "failed" if stopped else "completed"
+        await repo.update_campaign_status(campaign_id, status)
+        campaign = await repo.get_campaign(campaign_id)
+        summary = await ReportService(session).build_campaign_summary(campaign_id)
+
+    if not campaign:
+        return
+
+    title = "⏹ Остановлена" if stopped else "✅ Завершена"
+    text = (
+        f"{title}: рассылка <b>#{campaign_id}</b> «{campaign.name}»\n"
+        f"✅ Отправлено: {summary.get('sent_ok', 0)}\n"
+        f"❌ Ошибки: {summary.get('failed', 0)}\n"
+        f"⏭ Пропущено: {summary.get('skipped', 0)}\n\n"
+        "📋 <b>Мои рассылки</b> — подробности"
+    )
+    for admin_id in settings.admin_id_list:
+        await BotNotifier.send(admin_id, text)
 
 
 async def _start_health_server() -> web.AppRunner | None:

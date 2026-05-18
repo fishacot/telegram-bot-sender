@@ -132,14 +132,18 @@ async def cb_go_acc(callback: CallbackQuery, state: FSMContext) -> None:
 
 @router.callback_query(F.data == "go:cht")
 async def cb_go_cht(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
     await callback.answer()
-    await ui_wizard.start_chat_add(callback, state)
+    if callback.message:
+        await ui_wizard.show_chats_section(callback.message, edit=True)
 
 
 @router.callback_query(F.data == "go:tpl")
 async def cb_go_tpl(callback: CallbackQuery, state: FSMContext) -> None:
+    await state.clear()
     await callback.answer()
-    await ui_wizard.start_template_add(callback, state)
+    if callback.message:
+        await ui_wizard.show_templates_section(callback.message, edit=True)
 
 
 @router.callback_query(F.data == "acc:upload")
@@ -153,6 +157,13 @@ async def cb_acc_proxy_menu(callback: CallbackQuery, state: FSMContext) -> None:
     await state.clear()
     await callback.answer()
     await ui_wizard.show_proxy_menu(callback)
+
+
+@router.callback_query(F.data == "acc:proxy_rotate")
+async def cb_acc_proxy_rotate(callback: CallbackQuery, state: FSMContext) -> None:
+    await callback.answer()
+    if callback.message:
+        await ui_wizard.start_proxy_rotate_message(callback.message, state)
 
 
 @router.callback_query(F.data == "acc:proxy_bulk")

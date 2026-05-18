@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.bot.keyboards.menu import BTN_CANCEL, cancel_row_keyboard, main_menu_keyboard
 from app.bot.states.account_states import AccountProxyState, AccountUploadState
 from app.bot.texts import ru as texts
+from app.bot.texts.errors_ru import humanize_error
 from app.config import get_settings
 from app.container import get_container
 from app.domain.proxy_url import BulkProxyAssignResult, ProxyParseError, mask_proxy_url
@@ -134,7 +135,7 @@ async def account_upload_file_handler(message: Message, state: FSMContext) -> No
     except AccountImportError as error:
         await message.answer(f"❌ {error}")
     except Exception as error:  # noqa: BLE001
-        await message.answer(f"❌ Ошибка загрузки: {error}")
+        await message.answer(f"❌ {humanize_error(error)}")
 
 
 @router.callback_query(F.data.startswith("accproxy:acc:"))
@@ -167,6 +168,7 @@ async def accproxy_cancel(callback: CallbackQuery, state: FSMContext) -> None:
     StateFilter(
         AccountProxyState.waiting_proxy,
         AccountProxyState.waiting_bulk,
+        AccountProxyState.waiting_bulk_rotate,
         AccountProxyState.waiting_all,
     ),
     F.text == BTN_CANCEL,
@@ -203,6 +205,40 @@ async def accproxy_set_text(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(
         f"✅ Прокси для #{account.id} <b>{account.name}</b>: {mask_proxy_url(account.proxy)}",
+        reply_markup=main_menu_keyboard(),
+    )
+
+
+@router.message(StateFilter(AccountProxyState.waiting_bulk_rotate))
+async def accproxy_rotate_input(message: Message, state: FSMContext) -> None:
+    actor_id = message.from_user.id if message.from_user else 0
+    try:
+        payload = await _read_proxy_payload(message)
+    except ValueError as error:
+        await message.answer(str(error))
+        return
+
+    try:
+        async with SessionLocal() as session:
+            service = _make_proxy_service(session)
+            result = await service.bulk_assign_round_robin(payload)
+            await AuditService(session).log(
+                actor_id,
+                "account.proxy_rotate",
+                {"updated": len(result.updated), "errors": len(result.errors)},
+            )
+    except ProxyParseError as error:
+        await message.answer(f"❌ {error}")
+        return
+    except ValueError as error:
+        await message.answer(f"❌ {error}")
+        return
+
+    account_ids = [item[0] for item in result.updated]
+    await _invalidate_proxy_clients(account_ids)
+    await state.clear()
+    await message.answer(
+        _format_bulk_result(result) + "\n\n🔄 Прокси распределены по кругу на все аккаунты.",
         reply_markup=main_menu_keyboard(),
     )
 

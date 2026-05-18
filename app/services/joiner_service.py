@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.chat_target import ParsedChatTarget
 from app.infrastructure.db.models import Account, Chat, JoinTask
 from app.infrastructure.telethon_clients.sender_adapter import TelethonSenderAdapter
+from app.bot.texts.errors_ru import humanize_error
 from app.services.compliance_guard import ComplianceGuard
 
 logger = logging.getLogger(__name__)
@@ -115,12 +116,10 @@ class JoinerService:
                     await BotNotifier.send(
                         notify_user_id,
                         (
-                            f"Join completed (task #{task_id})\n"
-                            f"Chat pool id: #{chat.id}\n"
-                            f"Title: {chat.title}\n"
-                            f"tg_chat_id: {chat.tg_chat_id}\n"
-                            f"can_send: {int(chat.can_send)}\n"
-                            f"Target: {parsed.storage_key}"
+                            f"✅ Вступление #{task_id}\n"
+                            f"Чат <b>#{chat.id}</b> {chat.title}\n"
+                            f"Писать: {'да' if chat.can_send else 'нет'}\n"
+                            f"Цель: {parsed.storage_key}"
                         ),
                     )
             except Exception as error:  # noqa: BLE001
@@ -128,5 +127,5 @@ class JoinerService:
                 if notify_user_id:
                     await BotNotifier.send(
                         notify_user_id,
-                        f"Join failed (task #{task_id})\n{error}",
+                        f"❌ Вступление #{task_id} не удалось\n{humanize_error(error)}",
                     )

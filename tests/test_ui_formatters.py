@@ -4,15 +4,14 @@ from app.infrastructure.db.models import Account, Campaign, Chat, Template
 
 def test_dashboard_not_ready():
     status = SetupStatus(accounts=1, chats=0, templates=0, running_campaigns=0)
-    text = format_dashboard(status)
-    assert "1/3" in text
+    text = format_dashboard(status, steps_text="шаги")
     assert "чаты" in text
 
 
 def test_dashboard_ready():
     status = SetupStatus(accounts=2, chats=3, templates=1, running_campaigns=0)
-    text = format_dashboard(status)
-    assert "Готово" in text
+    text = format_dashboard(status, steps_text="шаги")
+    assert "готово" in text.lower()
 
 
 def test_wizard_step():

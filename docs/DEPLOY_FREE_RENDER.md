@@ -45,7 +45,14 @@ c:\Users\user\Desktop\телеграм рассылка\render.env.local
 
 Откройте в блокноте → Ctrl+A → Ctrl+C → вставьте в Render.
 
-**PostgreSQL не нужен.**
+**PostgreSQL не нужен.** Для сохранения БД между рестартами контейнера добавьте в Environment:
+
+```env
+DATABASE_URL=sqlite+aiosqlite:////data/app.db
+SESSIONS_DIR=/data/sessions
+```
+
+Шаблон всех переменных: `render.env.example` в корне проекта.
 
 ---
 

@@ -22,7 +22,7 @@ class SendRateLimiter:
         settings: dict,
     ) -> None:
         now = datetime.utcnow()
-        if not self.policy.is_within_active_hours(settings.get("active_hours", "9-21"), now):
+        if not self.policy.is_within_active_hours(settings.get("active_hours", "0-23"), now):
             raise ComplianceError("Outside configured active hours.")
 
         hour_ago = now - timedelta(hours=1)

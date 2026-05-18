@@ -47,21 +47,26 @@ def build_setup_status(
     )
 
 
-def format_dashboard(status: SetupStatus) -> str:
+def format_dashboard(status: SetupStatus, *, steps_text: str = "") -> str:
     if status.is_ready:
-        readiness = "✅ <b>Готово к рассылке</b>"
+        readiness = "✅ Готово к запуску — нажмите <b>📤 Новая рассылка</b>"
+        tail = ""
     else:
         missing = ", ".join(status.missing_labels())
-        readiness = f"⚠️ <b>Настройка {status.ready_steps}/3</b> — нет: {missing}"
+        readiness = f"⏳ Не хватает: {missing}"
+        tail = f"\n\n{steps_text}" if steps_text else ""
+
+    stats = (
+        f"Аккаунтов: {status.accounts} · чатов: {status.chats} · шаблонов: {status.templates}"
+    )
+    if status.running_campaigns:
+        stats += f" · в работе: {status.running_campaigns}"
 
     return (
-        "👋 <b>Панель рассылок</b>\n\n"
-        f"{readiness}\n\n"
-        f"👤 Аккаунты: <b>{status.accounts}</b>\n"
-        f"💬 Чаты: <b>{status.chats}</b>\n"
-        f"📝 Шаблоны: <b>{status.templates}</b>\n"
-        f"📋 Активных рассылок: <b>{status.running_campaigns}</b>\n\n"
-        "Кнопки внизу — разделы. В мастерах — кнопки под сообщением."
+        "👋 <b>Панель рассылки</b>\n\n"
+        f"{readiness}\n"
+        f"<i>{stats}</i>"
+        f"{tail}"
     )
 
 
@@ -75,10 +80,12 @@ def format_accounts_section(accounts: list[Account], *, page: int, per_page: int
         return "👤 <b>Аккаунты</b>\n\nПока пусто.\nНажмите <b>➕ Загрузить .session</b>."
     start = page * per_page
     chunk = accounts[start : start + per_page]
-    lines = [
-        f"#{a.id} <b>{a.name}</b> · {a.role} · 🌐 {mask_proxy_url(a.proxy)}"
-        for a in chunk
-    ]
+    lines = []
+    for a in chunk:
+        proxy_label = mask_proxy_url(a.proxy)
+        if not a.proxy:
+            proxy_label = "⚠️ нет прокси"
+        lines.append(f"#{a.id} <b>{a.name}</b> · {a.role} · 🌐 {proxy_label}")
     header = f"👤 <b>Аккаунты</b> ({len(accounts)}) · стр. {page + 1}/{total_pages}\n\n"
     return header + "\n".join(lines)
 
@@ -137,10 +144,12 @@ def format_campaign_confirm(
     allowed_count: int,
     excluded_count: int,
     delay_label: str,
+    proxy_warning: str = "",
 ) -> str:
+    proxy_line = f"\n{proxy_warning}" if proxy_warning else ""
     return (
         "📋 <b>Проверка перед запуском</b>\n\n"
-        f"👤 {account_name} (#{account_id})\n"
+        f"👤 {account_name} (#{account_id}){proxy_line}\n"
         f"📝 {template_name} (#{template_id})\n"
         f"💬 Выбрано: {selected_count} · можно: <b>{allowed_count}</b>"
         f" · исключено: {excluded_count}\n"

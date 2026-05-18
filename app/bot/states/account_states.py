@@ -9,4 +9,5 @@ class AccountProxyState(StatesGroup):
     pick_account = State()
     waiting_proxy = State()
     waiting_bulk = State()
+    waiting_bulk_rotate = State()
     waiting_all = State()

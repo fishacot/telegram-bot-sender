@@ -98,8 +98,9 @@ def section_accounts_keyboard() -> InlineKeyboardMarkup:
 def section_proxy_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="📋 Список (по порядку)", callback_data="acc:proxy_bulk")],
-            [InlineKeyboardButton(text="♻️ Один на всех", callback_data="acc:proxy_all")],
+            [InlineKeyboardButton(text="🔄 N прокси → все аккаунты", callback_data="acc:proxy_rotate")],
+            [InlineKeyboardButton(text="📋 1 строка = 1 аккаунт", callback_data="acc:proxy_bulk")],
+            [InlineKeyboardButton(text="♻️ Один прокси на всех", callback_data="acc:proxy_all")],
             [InlineKeyboardButton(text="👤 Один аккаунт", callback_data="acc:proxy")],
             nav_row(back="acc:list:p:0", home=True),
         ]

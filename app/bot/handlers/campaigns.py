@@ -124,7 +124,7 @@ async def campaign_pick_settings(message: Message, state: FSMContext) -> None:
         "max_delay_msg": max_delay,
         "min_delay_chat": 30,
         "max_delay_chat": 90,
-        "active_hours": "9-21",
+        "active_hours": "0-23",
         "max_per_acc_hour": max_per_acc,
         "max_per_chat_day": 3,
         "cooldown_hours": 24,
