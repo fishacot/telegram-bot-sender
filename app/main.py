@@ -19,6 +19,8 @@ from app.services.report_service import ReportService
 
 logger = logging.getLogger(__name__)
 
+_bot_polling_active = False
+
 
 async def _on_campaign_complete(campaign_id: int) -> None:
     container = get_container()
@@ -54,7 +56,9 @@ async def _start_health_server() -> web.AppRunner | None:
     app = web.Application()
 
     async def health(_request: web.Request) -> web.Response:
-        return web.Response(text="ok")
+        if _bot_polling_active:
+            return web.Response(text="ok bot=polling")
+        return web.Response(text="ok bot=starting")
 
     app.router.add_get("/", health)
     runner = web.AppRunner(app)
@@ -65,9 +69,11 @@ async def _start_health_server() -> web.AppRunner | None:
 
 
 async def run() -> None:
-    settings = get_settings()
     configure_logging()
+    settings = get_settings()
+    logger.info("Application startup (log_level=%s)", settings.log_level)
     health_runner = await _start_health_server()
+    logger.info("Running container startup (DB, scheduler, sender worker)")
     container = await startup()
     container.sender_service.set_campaign_complete_handler(_on_campaign_complete)
 
@@ -102,11 +108,24 @@ async def run() -> None:
         error_store.set_notify_callback(_agent_error_notify)
 
     dispatcher = build_dispatcher()
-    logger.info(
-        "Starting bot polling (admins=%s, sessions=%s)",
-        len(settings.admin_id_list),
-        settings.sessions_dir,
-    )
+    try:
+        me = await bot.get_me()
+        logger.info(
+            "Telegram bot authorized: @%s (id=%s), admins=%s, sessions=%s",
+            me.username,
+            me.id,
+            len(settings.admin_id_list),
+            settings.sessions_dir,
+        )
+    except Exception:
+        logger.exception(
+            "Cannot connect to Telegram API. Check BOT_TOKEN and TELEGRAM_PROXY on Render."
+        )
+        raise
+
+    global _bot_polling_active
+    _bot_polling_active = True
+    logger.info("Bot polling started — send /start in Telegram")
     try:
         await dispatcher.start_polling(bot)
     finally:

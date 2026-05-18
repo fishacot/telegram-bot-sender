@@ -7,9 +7,10 @@ import sys
 
 
 def main() -> None:
-    print("Running database migrations...")
+    print("=== telegram-bot-sender: production start ===", flush=True)
+    print("Running database migrations...", flush=True)
     subprocess.check_call([sys.executable, "-m", "alembic", "upgrade", "head"])
-    print("Starting bot...")
+    print("Migrations OK. Starting bot polling...", flush=True)
     subprocess.check_call([sys.executable, "-m", "app.main"])
 
 

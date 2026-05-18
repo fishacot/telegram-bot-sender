@@ -24,6 +24,10 @@ def configure_logging() -> None:
     handler.setFormatter(formatter)
     root.addHandler(handler)
 
+    # Render health-check каждые 5 с — не засорять логи
+    logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
+    logging.getLogger("aiohttp.server").setLevel(logging.WARNING)
+
     if settings.ai_agent_enabled:
         from app.infrastructure.logging.agent_handler import AgentErrorLogHandler
 
